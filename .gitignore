@@ -7,3 +7,6 @@ cloned_repo/
 # Arquivos do Python
 __pycache__/
 *.pyc
+
+# Arquivo de chaves secretas
+.env

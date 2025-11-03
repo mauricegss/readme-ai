@@ -1,13 +1,16 @@
 import argparse
 import os
-import cloner          # Importa nosso módulo
-import analyzer        # Importa nosso módulo
+import cloner          
+import analyzer        
+import generator
+
+NOME_ARQUIVO_SAIDA = "README_NEW.md"
 
 def run_analysis(repo_url: str):
-    """
-    Orquestra o processo completo: clonar, analisar stack e dependências.
-    """
+    
     print(f"--- Iniciando análise para: {repo_url} ---")
+    
+    # --- FASE 1: COLETA DE DADOS ---
     
     # 1. Clonar
     caminho_local = cloner.clonar_repositorio(repo_url)
@@ -19,14 +22,13 @@ def run_analysis(repo_url: str):
     # 2. Analisar Stack
     stack_info = analyzer.identificar_stack(caminho_local)
     
-    # Este dicionário irá guardar todo o contexto para a IA
     contexto_para_ia = {
         "url_repo": repo_url,
         "tecnologia": stack_info['tecnologia'],
         "arquivo_stack": stack_info['arquivo'],
         "dependencias": [],
         "estrutura_arquivos": [],
-        "codigo_principal": None  # Novo campo
+        "codigo_principal": None 
     }
 
     # 3. Extrair Dependências
@@ -38,7 +40,7 @@ def run_analysis(repo_url: str):
     estrutura = analyzer.mapear_estrutura(caminho_local)
     contexto_para_ia["estrutura_arquivos"] = estrutura
     
-    # 5. Ler Código Principal (NOVO PASSO)
+    # 5. Ler Código Principal
     if stack_info['tecnologia'] != "Desconhecida":
         codigo_info = analyzer.ler_codigo_principal(caminho_local, stack_info['tecnologia'])
         if codigo_info:
@@ -53,20 +55,31 @@ def run_analysis(repo_url: str):
     print(f"  Tecnologia: {contexto_para_ia['tecnologia']}")
     print(f"  Dependências: {len(contexto_para_ia['dependencias'])} encontradas")
     print(f"  Estrutura: {len(contexto_para_ia['estrutura_arquivos'])} itens encontrados")
-    
     if contexto_para_ia.get('codigo_principal'):
-        arquivo_lido = contexto_para_ia['codigo_principal']['arquivo']
-        print(f"  Código Principal: Lido de '{arquivo_lido}'")
+        print(f"  Código Principal: Lido de '{contexto_para_ia['codigo_principal']['arquivo']}'")
     else:
         print("  Código Principal: Não encontrado")
     print("-" * 30)
     
-    # (No futuro, este dicionário 'contexto_para_ia' será enviado para o Gemini)
-    # print(contexto_para_ia) # Descomente se quiser ver o dicionário completo
-
+    # --- FASE 2: GERAÇÃO COM IA ---
+    # (Este é o novo bloco de código)
+    
+    print("\n--- Iniciando Geração com IA ---")
+    # 6. Chamar o gerador
+    readme_texto = generator.gerar_readme(contexto_para_ia)
+    print("IA concluiu a geração.")
+    
+    # 7. Salvar o resultado
+    try:
+        with open(NOME_ARQUIVO_SAIDA, "w", encoding="utf-8") as f:
+            f.write(readme_texto)
+        print(f"\n🎉 Sucesso! Seu README foi salvo em: {NOME_ARQUIVO_SAIDA}")
+    except Exception as e:
+        print(f"\nErro ao salvar o arquivo README: {e}")
+    
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="README-AI: Analisador de Repositórios GitHub.")
+    parser = argparse.ArgumentParser(description="README-AI: Gerador de README com IA.")
     parser.add_argument("url", type=str, help="A URL (https) do repositório GitHub a ser analisado.")
     args = parser.parse_args()
     

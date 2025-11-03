@@ -1,0 +1,4 @@
+GitPython
+google-generativeai
+python-dotenv
+tomli

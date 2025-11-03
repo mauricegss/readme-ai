@@ -2,7 +2,8 @@ import os
 import json
 import tomli  # pip install tomli
 
-# Mapeamento de arquivos de definição de projeto para suas tecnologias
+# --- CONSTANTES GLOBAIS ---
+
 ARQUIVOS_CHAVE = {
     # Python
     "requirements.txt": "Python",
@@ -22,40 +23,61 @@ ARQUIVOS_CHAVE = {
     ".sln": "C# (.NET)",
 }
 
-# Mapeamento de tecnologias para seus arquivos de entry point mais comuns
+LISTA_PRIORIDADE = [
+    "pyproject.toml", "Pipfile", "package.json", 
+    "requirements.txt", "pom.xml", "build.gradle",
+    "go.mod", "Gemfile", ".csproj", ".sln",
+]
+
+# --- MUDANÇA AQUI ---
+# Adicionamos os arquivos .ts (TypeScript) e .tsx (React TypeScript)
 ARQUIVOS_PRINCIPAIS = {
     "Python": ["main.py", "app.py", "run.py", "__init__.py"],
-    "JavaScript (Node.js)": ["index.js", "server.js", "app.js", "main.js"]
-    # Podemos adicionar mais para Java, Go, etc. depois
+    "JavaScript (Node.js)": [
+        "index.js", "server.js", "app.js", "main.js",
+        "index.ts", "server.ts", "app.ts", "main.ts", # <-- Novo
+        "main.tsx", "index.tsx" # <-- Novo
+    ]
 }
+# --- FIM DA MUDANÇA ---
 
-# Pastas comuns onde o código-fonte principal pode estar
-PASTAS_BUSCA = ["", "src", "app", "lib", "cmd"] # "" significa a raiz
+IGNORAR_LISTA_GERAL = [
+    '.git', '.github', '.vscode', 'node_modules', 
+    '__pycache__', '.DS_Store', 'venv', '.env',
+    'docs', 'tests', 'test', 'examples', 'scripts',
+    'dist', 'build', 'site',
+]
+
+# --- FUNÇÕES ---
 
 def identificar_stack(repo_path: str) -> dict:
     """
-    Varre a raiz do repositório em busca de arquivos de stack conhecidos.
+    Varre a raiz do repositório em busca de arquivos de stack, 
+    usando uma ordem de prioridade.
     """
     print(f"Analisando stack em: {repo_path}...")
-    tecnologias_encontradas = {}
-
-    for nome_arquivo in os.listdir(repo_path):
-        if nome_arquivo in ARQUIVOS_CHAVE:
-            tecnologia = ARQUIVOS_CHAVE[nome_arquivo]
-            tecnologias_encontradas[tecnologia] = nome_arquivo
-        
-        if nome_arquivo.endswith((".csproj", ".sln")):
-            tecnologia = ARQUIVOS_CHAVE[".csproj"]
-            tecnologias_encontradas[tecnologia] = nome_arquivo
-
-    if not tecnologias_encontradas:
-        print("Nenhuma stack de tecnologia conhecida foi encontrada.")
+    
+    try:
+        files_na_raiz = set(os.listdir(repo_path))
+    except Exception as e:
+        print(f"Erro ao listar arquivos do repositório: {e}")
         return {"tecnologia": "Desconhecida", "arquivo": None}
 
-    primeira_tec = list(tecnologias_encontradas.keys())[0]
-    primeiro_arq = tecnologias_encontradas[primeira_tec]
-    
-    return {"tecnologia": primeira_tec, "arquivo": primeiro_arq}
+    for arquivo_prioritario in LISTA_PRIORIDADE:
+        if arquivo_prioritario.startswith('.'):
+            for f in files_na_raiz:
+                if f.endswith(arquivo_prioritario):
+                    tecnologia = ARQUIVOS_CHAVE[arquivo_prioritario]
+                    print(f"Tecnologia encontrada (por prioridade): {tecnologia} ({f})")
+                    return {"tecnologia": tecnologia, "arquivo": f}
+        
+        if arquivo_prioritario in files_na_raiz:
+            tecnologia = ARQUIVOS_CHAVE[arquivo_prioritario]
+            print(f"Tecnologia encontrada (por prioridade): {tecnologia} ({arquivo_prioritario})")
+            return {"tecnologia": tecnologia, "arquivo": arquivo_prioritario}
+
+    print("Nenhuma stack de tecnologia conhecida foi encontrada.")
+    return {"tecnologia": "Desconhecida", "arquivo": None}
 
 def extrair_dependencias(repo_path: str, arquivo_stack: str) -> list:
     """
@@ -105,15 +127,11 @@ def mapear_estrutura(repo_path: str) -> list[str]:
     Lista os principais arquivos e diretórios na raiz do repositório.
     """
     print("Mapeando estrutura de arquivos...")
-    IGNORAR_LISTA = [
-        '.git', '.github', '.vscode', 'node_modules', 
-        '__pycache__', '.DS_Store', 'venv', '.env',
-    ]
     estrutura = []
     
     try:
         for item in os.listdir(repo_path):
-            if item in IGNORAR_LISTA:
+            if item in IGNORAR_LISTA_GERAL:
                 continue
             
             caminho_item = os.path.join(repo_path, item)
@@ -142,29 +160,36 @@ def ler_codigo_principal(repo_path: str, tecnologia: str) -> dict | None:
         print(f"Nenhum arquivo principal definido para a tecnologia: {tecnologia}")
         return None
 
-    for pasta in PASTAS_BUSCA:
+    pastas_busca = ["", "src", "app", "lib", "cmd"]
+    
+    try:
+        for item in os.listdir(repo_path):
+            caminho_item = os.path.join(repo_path, item)
+            if os.path.isdir(caminho_item) and \
+               item not in IGNORAR_LISTA_GERAL and \
+               not item.startswith('.'):
+                pastas_busca.append(item)
+    except Exception:
+        pass 
+    
+    pastas_busca = list(dict.fromkeys(pastas_busca)) 
+    print(f"Pastas de busca de código: {pastas_busca}")
+
+    for pasta in pastas_busca:
         for arquivo in arquivos_alvo:
-            # Cria o caminho relativo (ex: 'src/main.py')
             caminho_relativo = os.path.join(pasta, arquivo)
-            # Cria o caminho absoluto para verificar se existe
             caminho_abs = os.path.join(repo_path, caminho_relativo)
 
             if os.path.exists(caminho_abs):
                 print(f"Lendo código principal de: {caminho_relativo}")
                 try:
                     with open(caminho_abs, 'r', encoding='utf-8') as f:
-                        # Lê os primeiros 4000 caracteres (~1000 tokens)
-                        # Isso evita exceder o limite de contexto da IA
                         conteudo = f.read(4000)
-                        
-                        # Adiciona um aviso se o arquivo for maior
                         if len(conteudo) == 4000:
                             conteudo += "\n\n... (arquivo truncado para análise)"
-                            
                         return {"arquivo": caminho_relativo, "conteudo": conteudo}
                 except Exception as e:
                     print(f"Erro ao ler {caminho_abs}: {e}")
-                    # Continua tentando outros arquivos se este falhar a leitura
 
-    print("Nenhum arquivo de código principal (main.py, index.js, etc.) foi encontrado.")
+    print("Nenhum arquivo de código principal foi encontrado.")
     return None
