@@ -1,0 +1,9 @@
+# Ambiente virtual do Python
+venv/
+
+# Pasta para repositórios clonados
+cloned_repo/
+
+# Arquivos do Python
+__pycache__/
+*.pyc
